@@ -181,7 +181,7 @@ func (s *AuthUsecaseSuite) TestLogin_Success() {
 	s.hasher.On("Compare", user.Password, password).Return(nil)
 	s.jwt.On("CreateAccess", &user).Return("access.jwt", nil)
 	s.jwt.On("CreateRefresh", &user).Return("refresh.jwt", "refresh-id-123", time.Now().Add(24*time.Hour), nil)
-	s.refresh.On("Save", mock.Anything, "refresh-id-122", mock.AnythingOfType("time.Duration")).Return(nil)
+	s.refresh.On("Save", mock.Anything, "refresh-id-123", mock.AnythingOfType("time.Duration")).Return(nil)
 
 	jwt, err := s.uc.Login(context.Background(), email, password)
 	s.NoError(err)
