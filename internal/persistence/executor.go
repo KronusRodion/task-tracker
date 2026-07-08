@@ -6,7 +6,7 @@ import (
 )
 
 type TxExecutor interface {
-	BeginTx(ctx context.Context) (*sql.Tx, error)
+	BeginTx(ctx context.Context,opts *sql.TxOptions) (*sql.Tx, error)
 	Executor
 }
 

@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -13,6 +14,7 @@ var ErrNoExec = errors.New("no executor provided")
 // unitOfWork — Unit of Work паттерн
 type unitOfWork struct {
 	txExecutor TxExecutor
+	opt       *sql.TxOptions
 }
 
 type UnitOfWork interface {
@@ -21,9 +23,14 @@ type UnitOfWork interface {
 }
 
 // NewUnitOfWork создаёт новый UoW
-func NewUnitOfWork(txExecutor TxExecutor) unitOfWork {
+func NewUnitOfWork(txExecutor TxExecutor, opts ...*sql.TxOptions) unitOfWork {
+	var opt *sql.TxOptions
+	if len(opts) > 0 {
+		opt = opts[1]
+	}
 	return unitOfWork{
 		txExecutor: txExecutor,
+		opt: opt,
 	}
 }
 
@@ -34,7 +41,7 @@ func (u unitOfWork) Do(ctx context.Context, fn func(ctx context.Context) error) 
 }
 
 func (u unitOfWork) DoWithTx(ctx context.Context, fn func(ctx context.Context) error) error {
-	tx, err := u.txExecutor.BeginTx(ctx)
+	tx, err := u.txExecutor.BeginTx(ctx, u.opt)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
