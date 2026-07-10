@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
+	"log"
 
 	"github.com/redis/go-redis/v9"
 
@@ -29,8 +29,8 @@ func New(ctx context.Context) (*Env, error) {
 	e := &Env{
 		ctx: ctx,
 	}
-
-	if err := e.startPostgres(); err != nil {
+	log.Println("starting env")
+	if err := e.startMySQL(); err != nil {
 		return nil, err
 	}
 
@@ -60,17 +60,15 @@ func (e *Env) Close() {
 	}
 }
 
-func (e *Env) startPostgres() error {
+func (e *Env) startMySQL() error {
 	container, err := tcmysql.Run(
 		e.ctx,
-		"mysql:17-alpine",
+		"mysql:8.4",
 		tcmysql.WithDatabase("task_tracker"),
 		tcmysql.WithUsername("root"),
 		tcmysql.WithPassword("password"),
 		testcontainers.WithWaitStrategy(
-			wait.ForLog("ready for connections").
-				WithOccurrence(2).
-				WithStartupTimeout(60*time.Second),
+			wait.ForListeningPort("3306/tcp"),
 		),
 	)
 	if err != nil {

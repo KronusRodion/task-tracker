@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/KronusRodion/task-tracker/internal/app"
 	"github.com/KronusRodion/task-tracker/internal/config"
 	"github.com/KronusRodion/task-tracker/internal/constants"

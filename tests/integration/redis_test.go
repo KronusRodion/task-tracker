@@ -25,7 +25,7 @@ func TestRedisCaching(t *testing.T) {
 		// Verify the TTL is set (should be less than 5 minutes)
 		ttl, err := TestEnv.RedisClient.TTL(context.Background(), testKey).Result()
 		require.NoError(t, err)
-		require.Greater(t, ttl, 0)
+		require.Greater(t, ttl.Seconds(), float64(0))
 	})
 
 	t.Run("Cache invalidation after data change", func(t *testing.T) {

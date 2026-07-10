@@ -67,8 +67,7 @@ func (c DBConfig) Validate() error {
 	return nil
 }
 
-// ConnString возвращает строку подключения (DSN) для PostgreSQL
-func (c DBConfig) ConnString() string {
+func (c DBConfig) PGString() string {
 	ssl := c.SSLMode
 	if ssl == "" {
 		ssl = "disable"
@@ -84,4 +83,16 @@ func (c DBConfig) ConnString() string {
 		ssl,
 		int(c.Timeout.Seconds()),
 	)
+}
+
+
+func (c DBConfig) MySQLDSN() string {
+    return fmt.Sprintf(
+        "%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true",
+        c.User,
+        c.Password,
+        c.Host,
+        c.Port,
+        c.DBName,
+    )
 }

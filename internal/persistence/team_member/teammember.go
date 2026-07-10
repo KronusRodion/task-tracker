@@ -7,6 +7,7 @@ import (
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/KronusRodion/task-tracker/internal/persistence"
+
 	"github.com/google/uuid"
 )
 
@@ -31,8 +32,8 @@ INSERT INTO team_members (
 	team_id,
 	user_id,
 	role,
-	created_at
-) VALUES (?, ?, ?, NOW())
+	joined_at
+) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, NOW())
 `
 
 	_, err = exec.ExecContext(ctx, query,
@@ -55,7 +56,7 @@ func (r Repository) GetUserRole(
 	const query = `
 SELECT role
 FROM team_members
-WHERE team_id = ? AND user_id = ?
+WHERE team_id = UUID_TO_BIN(?) AND user_id = UUID_TO_BIN(?)
 LIMIT 1
 `
 
@@ -63,7 +64,6 @@ LIMIT 1
 
 	err = exec.QueryRowContext(ctx, query, teamID, userID).Scan(&role)
 	if err != nil {
-
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", domain.ErrNotTeamMember
 		}
@@ -86,7 +86,7 @@ func (r Repository) IsMember(
 	const query = `
 SELECT 1
 FROM team_members
-WHERE team_id = ? AND user_id = ?
+WHERE team_id = UUID_TO_BIN(?) AND user_id = UUID_TO_BIN(?)
 LIMIT 1
 `
 
@@ -94,7 +94,6 @@ LIMIT 1
 
 	err = exec.QueryRowContext(ctx, query, teamID, userID).Scan(&tmp)
 	if err != nil {
-
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}

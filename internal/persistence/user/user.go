@@ -36,7 +36,7 @@ func (r Repository) Create(
 		created_at,
 		updated_at
 	)
-	VALUES (?, ?, ?, ?, ?, ?)
+	VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, ?)
 	`
 
 	_, err = exec.ExecContext(
@@ -64,14 +64,14 @@ func (r Repository) GetByID(
 
 	const query = `
 	SELECT
-		id,
+		BIN_TO_UUID(id) as id,
 		email,
 		password,
 		full_name,
 		created_at,
 		updated_at
 	FROM users
-	WHERE id = ?
+	WHERE id = UUID_TO_BIN(?)
 	LIMIT 1
 	`
 
@@ -91,7 +91,6 @@ func (r Repository) GetByID(
 	)
 
 	if err != nil {
-
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.User{}, domain.ErrUserNotFound
 		}
@@ -112,7 +111,7 @@ func (r Repository) GetByEmail(
 	}
 	const query = `
 SELECT
-	id,
+	BIN_TO_UUID(id) as id,
 	email,
 	password,
 	full_name,
@@ -139,7 +138,6 @@ LIMIT 1
 	)
 
 	if err != nil {
-
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.User{}, domain.ErrUserNotFound
 		}

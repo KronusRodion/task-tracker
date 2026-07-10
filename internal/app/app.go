@@ -36,7 +36,7 @@ func Build(cfg *config.Config) (*App, error) {
 		}
 	}()
 
-	db, err := sql.Open("mysql", cfg.Database.ConnString())
+	db, err := sql.Open("mysql", cfg.Database.MySQLDSN())
 	if err != nil {
 		return nil, err
 	}

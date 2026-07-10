@@ -7,6 +7,7 @@ import (
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/KronusRodion/task-tracker/internal/persistence"
+
 	"github.com/google/uuid"
 )
 
@@ -29,7 +30,7 @@ INSERT INTO teams (
 	created_by,
 	created_at,
 	updated_at
-) VALUES (?, ?, ?, ?)
+) VALUES (UUID_TO_BIN(?), ?, UUID_TO_BIN(?), ?, ?)
 `
 
 	_, err = exec.ExecContext(
@@ -39,6 +40,7 @@ INSERT INTO teams (
 		team.Name,
 		team.CreatedBy,
 		team.CreatedAt,
+		team.UpdatedAt,
 	)
 
 	return err
@@ -52,13 +54,13 @@ func (r Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.Team, err
 
 	const query = `
 SELECT
-	id,
+	BIN_TO_UUID(id) as id,
 	name,
-	created_by,
+	BIN_TO_UUID(created_by) as created_by,
 	created_at,
 	updated_at
 FROM teams
-WHERE id = ?
+WHERE id = UUID_TO_BIN(?)
 LIMIT 1
 `
 
@@ -97,7 +99,7 @@ SELECT
 	t.updated_at
 FROM teams t
 JOIN team_members tm ON tm.team_id = t.id
-WHERE tm.user_id = ?
+WHERE tm.user_id = UUID_TO_BIN(?)
 `
 
 	rows, err := exec.QueryContext(ctx, query, userID)
@@ -111,12 +113,14 @@ WHERE tm.user_id = ?
 	for rows.Next() {
 		var t domain.Team
 
-		if err := rows.Scan(
+		err := rows.Scan(
 			&t.ID,
 			&t.Name,
 			&t.CreatedBy,
 			&t.CreatedAt,
-		); err != nil {
+			&t.UpdatedAt,
+		)
+		if err != nil {
 			return nil, err
 		}
 

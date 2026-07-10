@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -55,12 +56,10 @@ func New(auth AuthUsecase) *Handler {
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 
-	api := r.PathPrefix("/api/v1").Subrouter()
-
-	api.HandleFunc("/register", h.Register).Methods(http.MethodPost)
-	api.HandleFunc("/login", h.Login).Methods(http.MethodPost)
-	api.HandleFunc("/refresh", h.Refresh).Methods(http.MethodPost)
-	api.HandleFunc("/logout", h.Logout).Methods(http.MethodPost)
+	r.HandleFunc("/register", h.Register).Methods(http.MethodPost)
+	r.HandleFunc("/login", h.Login).Methods(http.MethodPost)
+	r.HandleFunc("/refresh", h.Refresh).Methods(http.MethodPost)
+	r.HandleFunc("/logout", h.Logout).Methods(http.MethodPost)
 }
 
 func setAccessCookie(w http.ResponseWriter, token string) {
@@ -110,6 +109,18 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ok := domain.IsEmailValid(req.Email)
+	if !ok {
+		handler.WriteError(w, http.StatusBadRequest, "invalid email", "email should be valid")
+		return
+	}
+
+	ok = domain.IsPasswordValid(req.Password)
+	if !ok {
+		handler.WriteError(w, http.StatusBadRequest, "invalid password", "password too easy")
+		return
+	}
+
 	err := h.auth.Register(
 		r.Context(),
 		req.Email,
@@ -124,6 +135,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			handler.WriteError(w, http.StatusConflict, "register error", err.Error())
 
 		default:
+			log.Println("err Error: ", err)
 			handler.WriteError(w, http.StatusInternalServerError, "internal service error", err.Error())
 		}
 
@@ -149,9 +161,20 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var req LoginRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		handler.WriteError(w, http.StatusBadRequest, "decoding error", err.Error())
+		return
+	}
+
+	ok := domain.IsEmailValid(req.Email)
+	if !ok {
+		handler.WriteError(w, http.StatusBadRequest, "invalid email", "email should have 8+ symbols, have number and special chars")
+		return
+	}
+
+	ok = domain.IsPasswordValid(req.Password)
+	if !ok {
+		handler.WriteError(w, http.StatusBadRequest, "invalid password", "password too easy")
 		return
 	}
 

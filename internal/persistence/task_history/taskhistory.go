@@ -33,7 +33,7 @@ INSERT INTO task_history(
 	changed_by,
 	created_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, UUID_TO_BIN(?), ?)
 `
 
 	_, err = exec.ExecContext(
@@ -69,7 +69,7 @@ SELECT
 	field,
 	old_value,
 	new_value,
-	changed_by,
+	BIN_TO_UUID(changed_by) as changed_by,
 	created_at
 FROM task_history
 WHERE task_id=?

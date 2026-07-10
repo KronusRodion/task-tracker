@@ -12,10 +12,11 @@ import (
 func TestRegisterAndLogin(t *testing.T) {
 	t.Run("Successful registration and login", func(t *testing.T) {
 		// Register a new user
-		regPayload := map[string]string{
-			"email":    "test@example.com",
-			"password": "password123",
-		}
+        regPayload := map[string]string{
+            "email":    "test@example.com",
+            "password": "password123",
+            "full_name": "Test User",
+        }
 		regJSON, _ := json.Marshal(regPayload)
 		regResp, err := http.Post(
 			"http://localhost:8080/api/v1/register",
@@ -23,7 +24,7 @@ func TestRegisterAndLogin(t *testing.T) {
 			bytes.NewBuffer(regJSON),
 		)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, regResp.StatusCode)
+		require.Equal(t, http.StatusCreated, regResp.StatusCode)
 
 		// Login with the registered user
 		loginPayload := map[string]string{

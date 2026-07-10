@@ -34,7 +34,7 @@ INSERT INTO tasks (
 	created_at,
 	updated_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?)
 `
 
 	result, err := exec.ExecContext(
@@ -73,13 +73,13 @@ func (r Repository) GetByID(ctx context.Context, id uint64) (domain.Task, error)
 	const query = `
 SELECT
 	id,
-	team_id,
+	BIN_TO_UUID(team_id) as team_id,
 	title,
 	description,
 	status,
 	priority,
-	created_by,
-	assignee_id,
+	BIN_TO_UUID(created_by) as created_by,
+	BIN_TO_UUID(assignee_id) as assignee_id,
 	created_at,
 	updated_at
 FROM tasks
@@ -125,7 +125,7 @@ SET
 	description=?,
 	status=?,
 	priority=?,
-	assignee_id=?,
+	assignee_id=UUID_TO_BIN(?),
 	updated_at=?
 WHERE id=?
 `
@@ -162,13 +162,13 @@ func (r Repository) GetByFilter(
 	query := `
 SELECT
 	id,
-	team_id,
+	BIN_TO_UUID(team_id) as team_id,
 	title,
 	description,
 	status,
 	priority,
-	created_by,
-	assignee_id,
+	BIN_TO_UUID(created_by) as created_by,
+	BIN_TO_UUID(assignee_id) as assignee_id,
 	created_at,
 	updated_at
 FROM tasks
@@ -178,7 +178,7 @@ WHERE 1=1
 	args := make([]any, 0)
 
 	if filter.TeamID != nil {
-		query += " AND team_id=?"
+		query += " AND team_id=UUID_TO_BIN(?)"
 		args = append(args, *filter.TeamID)
 	}
 
@@ -188,7 +188,7 @@ WHERE 1=1
 	}
 
 	if filter.AssigneeID != nil {
-		query += " AND assignee_id=?"
+		query += " AND assignee_id=UUID_TO_BIN(?)"
 		args = append(args, *filter.AssigneeID)
 	}
 
