@@ -33,9 +33,10 @@ func NewTaskUsecase(
 }
 
 func (u taskUsecase) CreateTask(ctx context.Context, task domain.Task) (domain.Task, error) {
-	
+
 	return task, u.uow.DoWithTx(ctx, func(ctx context.Context) error {
-		if ok, err := u.teamRepo.IsMember(ctx, task.TeamID, task.CreatedBy); err != nil {
+		ok, err := u.teamRepo.IsMember(ctx, task.TeamID, task.CreatedBy)
+		if err != nil {
 			return err
 		} else if !ok {
 			return domain.ErrNotTeamMember
@@ -49,15 +50,15 @@ func (u taskUsecase) CreateTask(ctx context.Context, task domain.Task) (domain.T
 			}
 		}
 
-		created, err := u.taskRepo.Create(ctx, task)
+		task, err = u.taskRepo.Create(ctx, task)
 		if err != nil {
 			return err
 		}
 
 		err = u.historyRepo.Create(ctx, domain.TaskHistory{
-			TaskID:    created.ID,
+			TaskID:    task.ID,
 			Action:    domain.HistoryCreated,
-			ChangedBy: created.CreatedBy,
+			ChangedBy: task.CreatedBy,
 			CreatedAt: time.Now(),
 		})
 

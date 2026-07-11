@@ -80,7 +80,6 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	var resp TaskResponse
 	resp.FromDomain(created)
-
 	handler.WriteJSON(w, http.StatusCreated, resp)
 }
 

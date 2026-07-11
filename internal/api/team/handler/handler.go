@@ -152,14 +152,14 @@ func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
 
 	var req InviteUserRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handler.WriteError(w, http.StatusBadRequest, "decode error", err.Error())
-		return
-	}
-
 	userID, err := domain.UserIDFromContext(r.Context())
 	if err != nil {
 		handler.WriteError(w, http.StatusUnauthorized, "unauthorized", err.Error())
+		return
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "decode error", err.Error())
 		return
 	}
 
@@ -180,7 +180,7 @@ func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		switch {
-		case errors.Is(err, domain.ErrForbidden):
+		case errors.Is(err, domain.ErrForbidden), errors.Is(err, domain.ErrNotTeamMember):
 			handler.WriteError(w, http.StatusForbidden, "forbidden", err.Error())
 
 		case errors.Is(err, domain.ErrUserNotFound):

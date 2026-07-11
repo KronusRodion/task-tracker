@@ -26,6 +26,10 @@ func (s TaskStatus) IsValid() bool {
 
 type TaskPriority string
 
+func (t TaskPriority) Validate() bool {
+	return t == PriorityLow || t == PriorityMedium || t == PriorityHigh
+}
+
 const (
 	PriorityLow    TaskPriority = "low"
 	PriorityMedium TaskPriority = "medium"
@@ -60,10 +64,9 @@ type TaskFilter struct {
 	Offset uint64
 }
 
-
 type TaskPatch struct {
-	Title       *string       `json:"title,omitempty"`
-	Description *string       `json:"description,omitempty"`
-	Status      *TaskStatus   `json:"status,omitempty"`
-	AssigneeID  *uuid.UUID    `json:"assignee_id,omitempty"`
+	Title       *string     `json:"title,omitempty"`
+	Description *string     `json:"description,omitempty"`
+	Status      *TaskStatus `json:"status,omitempty"`
+	AssigneeID  *uuid.UUID  `json:"assignee_id,omitempty"`
 }

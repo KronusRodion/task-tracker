@@ -32,8 +32,9 @@ INSERT INTO team_members (
 	team_id,
 	user_id,
 	role,
-	joined_at
-) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, NOW())
+	joined_at,
+	updated_at
+) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, NOW(), NOW())
 `
 
 	_, err = exec.ExecContext(ctx, query,

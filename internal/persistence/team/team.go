@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/KronusRodion/task-tracker/internal/persistence"
@@ -42,7 +43,7 @@ INSERT INTO teams (
 		team.CreatedAt,
 		team.UpdatedAt,
 	)
-
+	log.Println("create team err: ", err, team)
 	return err
 }
 

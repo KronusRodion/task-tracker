@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
@@ -40,14 +41,14 @@ func (t *TaskResponse) FromDomain(task domain.Task) {
 }
 
 type CreateTaskRequest struct {
-	TeamID      string  `json:"team_id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	AssigneeID  *string `json:"assignee_id,omitempty"`
+	TeamID      string              `json:"team_id"`
+	Title       string              `json:"title"`
+	Description string              `json:"description"`
+	Priority    domain.TaskPriority `json:"priority"`
+	AssigneeID  *string             `json:"assignee_id,omitempty"`
 }
 
 func (r *CreateTaskRequest) ToDomain(createdBy uuid.UUID) (domain.Task, error) {
-
 	teamID, err := uuid.Parse(r.TeamID)
 	if err != nil {
 		return domain.Task{}, err
@@ -62,6 +63,11 @@ func (r *CreateTaskRequest) ToDomain(createdBy uuid.UUID) (domain.Task, error) {
 		assignee = &id
 	}
 
+	ok := r.Priority.Validate()
+	if !ok {
+		return domain.Task{}, fmt.Errorf("invalid priority: '%s'", r.Priority)
+	}
+
 	return domain.Task{
 		TeamID:      teamID,
 		Title:       r.Title,
@@ -69,9 +75,11 @@ func (r *CreateTaskRequest) ToDomain(createdBy uuid.UUID) (domain.Task, error) {
 		Status:      domain.StatusTodo,
 		CreatedBy:   createdBy,
 		AssigneeID:  assignee,
+		Priority:    r.Priority,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}, nil
 }
-
 
 type UpdateTaskRequest struct {
 	Title       *string `json:"title,omitempty"`
@@ -79,7 +87,6 @@ type UpdateTaskRequest struct {
 	Status      *string `json:"status,omitempty"`
 	AssigneeID  *string `json:"assignee_id,omitempty"`
 }
-
 
 func (r *UpdateTaskRequest) ToDomain() (domain.TaskPatch, error) {
 
@@ -114,9 +121,6 @@ func (r *UpdateTaskRequest) ToDomain() (domain.TaskPatch, error) {
 	return patch, nil
 }
 
-
-
-
 type TaskHistoryResponse struct {
 	ID     uint64 `json:"id"`
 	TaskID uint64 `json:"task_id"`
@@ -130,8 +134,6 @@ type TaskHistoryResponse struct {
 	ChangedBy string `json:"changed_by"`
 	CreatedAt string `json:"created_at"`
 }
-
-
 
 func (h *TaskHistoryResponse) FromDomain(hist domain.TaskHistory) {
 	h.ID = hist.ID

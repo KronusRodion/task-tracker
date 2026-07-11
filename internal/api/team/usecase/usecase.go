@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,6 +53,7 @@ func (u TeamsUsecase) CreateTeam(
 		}
 
 		if err := u.members.AddMember(ctx, team.ID, ownerID, domain.RoleOwner); err != nil {
+			log.Println("err add member", err)
 			return err
 		}
 

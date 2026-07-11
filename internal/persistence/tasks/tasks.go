@@ -60,7 +60,7 @@ VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?)
 	}
 
 	task.ID = uint64(id)
-
+	
 	return task, nil
 }
 

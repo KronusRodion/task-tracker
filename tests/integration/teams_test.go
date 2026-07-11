@@ -12,7 +12,7 @@ import (
 
 func TestTeamManagement(t *testing.T) {
 	client := env.GetAuthClient(t)
-
+	var newTeamID string
 	t.Run("Create a team and list teams", func(t *testing.T) {
 		teamPayload := map[string]string{
 			"name": "Test Team",
@@ -24,7 +24,12 @@ func TestTeamManagement(t *testing.T) {
 			bytes.NewBuffer(teamJSON),
 		)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, teamResp.StatusCode)
+		require.Equal(t, http.StatusCreated, teamResp.StatusCode)
+		var teamResponse struct {
+			ID string `json:"id"`
+		}
+		json.NewDecoder(teamResp.Body).Decode(&teamResponse)
+		newTeamID = teamResponse.ID
 	})
 
 	t.Run("List teams where user is a member", func(t *testing.T) {
@@ -36,19 +41,18 @@ func TestTeamManagement(t *testing.T) {
 	})
 
 	t.Run("Invite user to team (as owner)", func(t *testing.T) {
-		// Используем команду TeamAlpha, владельцем которой является user1
 		invitePayload := map[string]string{
 			"user_id": env.User2ID,
 			"role":    "member",
 		}
 		inviteJSON, _ := json.Marshal(invitePayload)
 		inviteResp, err := client.Post(
-			env.BaseURL+"/api/v1/teams/"+env.TeamAlphaID+"/invite",
+			env.BaseURL+"/api/v1/teams/"+newTeamID+"/invite",
 			"application/json",
 			bytes.NewBuffer(inviteJSON),
 		)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, inviteResp.StatusCode)
+		require.Equal(t, http.StatusNoContent, inviteResp.StatusCode)
 	})
 
 	t.Run("Non-owner attempts to invite user (should fail)", func(t *testing.T) {
