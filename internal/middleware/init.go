@@ -4,16 +4,12 @@ import "net/http"
 
 var (
 	Auth   func(http.Handler) http.Handler
-	Logger func(http.Handler) http.Handler
-	Rbac   RBCMiddleware
+	Logger func(http.Handler) http.Handler = genLoggerMiddleware()
 )
 
-func Init(
+func InitAuth(
 	parser Authenticator,
-	checker PermissionChecker,
 ) {
 
 	Auth = genAuthMiddleware(parser)
-	Logger = genLoggerMiddleware()
-	Rbac = GenRbacMiddleware(checker)
 }

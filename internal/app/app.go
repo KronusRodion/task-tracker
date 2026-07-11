@@ -61,9 +61,11 @@ func Build(cfg *config.Config) (*App, error) {
 	}
 	closer.Add(client)
 
+	// инициализируем auth module + middleware
+	auth.NewModule(db, client, router, cfg.Auth)
+
 	tasks.NewModule(db, router)
 	team.NewModule(db, router)
-	auth.NewModule(db, client, router, cfg.Auth)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),

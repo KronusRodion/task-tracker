@@ -6,19 +6,20 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/KronusRodion/task-tracker/tests/integration/env"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTeamManagement(t *testing.T) {
+	client := env.GetAuthClient(t)
+
 	t.Run("Create a team and list teams", func(t *testing.T) {
-		// Create a team (requires authentication)
-		// This is a placeholder; in a real test, you would include a valid JWT token
 		teamPayload := map[string]string{
 			"name": "Test Team",
 		}
 		teamJSON, _ := json.Marshal(teamPayload)
-		teamResp, err := http.Post(
-			"http://localhost:8080/api/v1/teams",
+		teamResp, err := client.Post(
+			env.BaseURL+"/api/v1/teams",
 			"application/json",
 			bytes.NewBuffer(teamJSON),
 		)
@@ -27,25 +28,22 @@ func TestTeamManagement(t *testing.T) {
 	})
 
 	t.Run("List teams where user is a member", func(t *testing.T) {
-		// List teams (requires authentication)
-		// This is a placeholder; in a real test, you would include a valid JWT token
-		listResp, err := http.Get(
-			"http://localhost:8080/api/v1/teams",
+		listResp, err := client.Get(
+			env.BaseURL + "/api/v1/teams",
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, listResp.StatusCode)
 	})
 
 	t.Run("Invite user to team (as owner)", func(t *testing.T) {
-		// Invite a user to a team (requires authentication and owner role)
-		// This is a placeholder; in a real test, you would include a valid JWT token
+		// Используем команду TeamAlpha, владельцем которой является user1
 		invitePayload := map[string]string{
-			"user_id": "2",
+			"user_id": env.User2ID,
 			"role":    "member",
 		}
 		inviteJSON, _ := json.Marshal(invitePayload)
-		inviteResp, err := http.Post(
-			"http://localhost:8080/api/v1/teams/1/invite",
+		inviteResp, err := client.Post(
+			env.BaseURL+"/api/v1/teams/"+env.TeamAlphaID+"/invite",
 			"application/json",
 			bytes.NewBuffer(inviteJSON),
 		)
@@ -54,19 +52,20 @@ func TestTeamManagement(t *testing.T) {
 	})
 
 	t.Run("Non-owner attempts to invite user (should fail)", func(t *testing.T) {
-		// Non-owner attempts to invite a user (should return 403 Forbidden)
-		// This is a placeholder; in a real test, you would include an invalid JWT token
+		// Создаём клиент от имени пользователя, не являющегося владельцем TeamAlpha
+		nonOwnerClient := env.CreateFreshClient(t)
 		invitePayload := map[string]string{
-			"user_id": "2",
+			"user_id": env.User2ID,
 			"role":    "member",
 		}
 		inviteJSON, _ := json.Marshal(invitePayload)
-		inviteResp, err := http.Post(
-			"http://localhost:8080/api/v1/teams/1/invite",
+		inviteResp, err := nonOwnerClient.Post(
+			env.BaseURL+"/api/v1/teams/"+env.TeamAlphaID+"/invite",
 			"application/json",
 			bytes.NewBuffer(inviteJSON),
 		)
 		require.NoError(t, err)
+		defer inviteResp.Body.Close()
 		require.Equal(t, http.StatusForbidden, inviteResp.StatusCode)
 	})
 }

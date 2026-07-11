@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
+	"github.com/KronusRodion/task-tracker/internal/middleware"
 	"github.com/KronusRodion/task-tracker/internal/tools/handler"
 
 	"github.com/gorilla/mux"
@@ -56,10 +57,10 @@ func New(auth AuthUsecase) *Handler {
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 
-	r.HandleFunc("/register", h.Register).Methods(http.MethodPost)
-	r.HandleFunc("/login", h.Login).Methods(http.MethodPost)
-	r.HandleFunc("/refresh", h.Refresh).Methods(http.MethodPost)
-	r.HandleFunc("/logout", h.Logout).Methods(http.MethodPost)
+	r.Handle("/register", middleware.Logger(http.HandlerFunc(h.Register))).Methods(http.MethodPost)
+	r.Handle("/login", http.HandlerFunc((h.Login))).Methods(http.MethodPost)
+	r.Handle("/refresh", middleware.Auth(middleware.Logger(http.HandlerFunc(h.Refresh)))).Methods(http.MethodPost)
+	r.Handle("/logout", middleware.Auth(middleware.Logger(http.HandlerFunc(h.Logout)))).Methods(http.MethodPost)
 }
 
 func setAccessCookie(w http.ResponseWriter, token string) {
@@ -163,18 +164,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		handler.WriteError(w, http.StatusBadRequest, "decoding error", err.Error())
-		return
-	}
-
-	ok := domain.IsEmailValid(req.Email)
-	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "invalid email", "email should have 8+ symbols, have number and special chars")
-		return
-	}
-
-	ok = domain.IsPasswordValid(req.Password)
-	if !ok {
-		handler.WriteError(w, http.StatusBadRequest, "invalid password", "password too easy")
 		return
 	}
 

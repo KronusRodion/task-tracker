@@ -18,7 +18,6 @@ func genAuthMiddleware(parser Authenticator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 			token, err := extractToken(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -34,7 +33,7 @@ func genAuthMiddleware(parser Authenticator) func(http.Handler) http.Handler {
 			ctx := context.WithValue(
 				r.Context(),
 				ctxkeys.UserKey,
-				&domain.UserCtx{
+				domain.UserCtx{
 					ID: claims.ID,
 				},
 			)

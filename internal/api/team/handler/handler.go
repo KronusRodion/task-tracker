@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
+	"github.com/KronusRodion/task-tracker/internal/middleware"
 	"github.com/KronusRodion/task-tracker/internal/tools/handler"
 )
 
@@ -47,6 +48,8 @@ func New(teams TeamsUsecase) *Handler {
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 	api := r.PathPrefix("/teams").Subrouter()
 
+	api.Use(middleware.Auth)
+	api.Use(middleware.Logger)
 	api.HandleFunc("", h.CreateTeam).Methods(http.MethodPost)
 	api.HandleFunc("", h.ListTeams).Methods(http.MethodGet)
 	api.HandleFunc("/{id}/invite", h.InviteUser).Methods(http.MethodPost)

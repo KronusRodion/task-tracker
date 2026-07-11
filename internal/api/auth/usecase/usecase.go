@@ -170,3 +170,14 @@ func (u AuthUsecase) Logout(
 		return u.refresh.Delete(ctx, claims.ID)
 	})
 }
+
+func (u AuthUsecase) Authenticate(token string) (*domain.UserCtx, error) {
+	claims, err := u.jwt.ParseAccess(token)
+	if err != nil {
+		return nil, err
+	}
+
+	userCtx := &domain.UserCtx{ID: claims.UserID}
+
+	return userCtx, nil
+}

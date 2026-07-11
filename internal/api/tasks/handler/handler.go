@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
+	"github.com/KronusRodion/task-tracker/internal/middleware"
 	"github.com/KronusRodion/task-tracker/internal/tools/handler"
 	"github.com/KronusRodion/task-tracker/internal/tools/parse"
 	"github.com/google/uuid"
@@ -32,6 +33,8 @@ func NewTaskHandler(usecase TasksUsecase) TaskHandler {
 func (h TaskHandler) RegisterRoutes(r *gorilla.Router) {
 	api := r.PathPrefix("/tasks").Subrouter()
 
+	api.Use(middleware.Auth)
+	api.Use(middleware.Logger)
 	api.HandleFunc("", h.CreateTask).Methods(http.MethodPost)
 	api.HandleFunc("", h.GetTasks).Methods(http.MethodGet)
 	api.HandleFunc("/{id}", h.UpdateTask).Methods(http.MethodPatch)
@@ -107,7 +110,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		TeamID:     parse.UUIDPtr(r.URL.Query().Get("team_id")),
 		Status:     parse.TaskStatus(r.URL.Query().Get("status")),
 		AssigneeID: parse.UUIDPtr(r.URL.Query().Get("assignee_id")),
-		UserID:     userID, 
+		UserID:     userID,
 	}
 
 	if limit, err := strconv.ParseUint(r.URL.Query().Get("limit"), 10, 64); err == nil && limit > 0 {

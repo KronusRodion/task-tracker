@@ -39,6 +39,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, loginResp.StatusCode)
+		
 	})
 
 	t.Run("Invalid registration (missing email)", func(t *testing.T) {
