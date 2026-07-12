@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -32,6 +33,7 @@ func WriteError(
 	status int,
 	message, err string,
 ) {
+	log.Println("err :", err, message)
 	WriteJSON(
 		w,
 		status,

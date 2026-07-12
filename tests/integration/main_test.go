@@ -20,6 +20,12 @@ func TestMain(m *testing.M) {
 	fmt.Println("=== TestMain started ===")
 	ctx := context.Background()
 
+
+	if os.Getenv("SKIP_MAIN")=="true" {
+		println("skip init env")
+		os.Exit(m.Run())
+	}
+
 	var err error
 	TestEnv, err = env.New(ctx)
 	if err != nil {
@@ -44,7 +50,6 @@ func TestMain(m *testing.M) {
 		fmt.Printf("=== Error looking cache host: %v ===\n", err)
 		os.Exit(1)
 	}
-	println()
 	portCache, err := TestEnv.Redis.MappedPort(ctx, "6379")
 	if err != nil {
 		fmt.Printf("=== Error looking cache port: %v ===\n", err)
