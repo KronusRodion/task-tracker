@@ -1,6 +1,17 @@
-# task-tracker
-This is repo for task group tracking for test task
+# Task-tracker
+This is repository with task-group tracking application.
+Project uses MySQL like main persistence data storage and Redis like cache. 
 
+# Tests
+All usecases was coveredwith unit-tests in code
+The main usecases (ex. Create team, invite user, create/update task), repositories + handlers was covered by integration tests
+
+To run tests:
+```go
+go test ./...
+```
+
+# Environments
 Пример .env файла в корне проекта
 ```bash
 # .env - переменные окружения для docker-compose

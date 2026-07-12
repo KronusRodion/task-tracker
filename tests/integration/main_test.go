@@ -71,9 +71,6 @@ func TestMain(m *testing.M) {
 		app.Run(ctx)
 	}()
 
-	wd, _ := os.Getwd()
-	fmt.Println("Working dir:", wd)
-	
 	err = migration.ApplyMigrations(TestEnv.DB, "../../migrations")
 	if err != nil {
 		fmt.Printf("=== Error apply migrations: %v ===\n", err)

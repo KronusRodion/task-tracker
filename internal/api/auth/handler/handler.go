@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -136,7 +135,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			handler.WriteError(w, http.StatusConflict, "register error", err.Error())
 
 		default:
-			log.Println("err Error: ", err)
 			handler.WriteError(w, http.StatusInternalServerError, "internal service error", err.Error())
 		}
 
