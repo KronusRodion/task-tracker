@@ -1,0 +1,98 @@
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deployments/Dockerfile
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      - PORT=${APP_PORT:-8080}
+      - DB_HOST=${DB_HOST:-mysql}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_NAME=${DB_NAME:-task_tracker}
+      - DB_SSL_MODE=${DB_SSL_MODE:-disable}
+      - DB_TIMEOUT=${DB_TIMEOUT:-5s}
+      - DB_MAX_OPEN_CONNS=${DB_MAX_OPEN_CONNS:-10}
+      - DB_MAX_IDLE_CONNS=${DB_MAX_IDLE_CONNS:-5}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - AUTH_ACCESS_SECRET=${AUTH_ACCESS_SECRET:-test-access-secret}
+      - AUTH_REFRESH_SECRET=${AUTH_REFRESH_SECRET:-test-refresh-secret}
+      - AUTH_ISSUER=${AUTH_ISSUER:-task-tracker}
+      - AUTH_ACCESS_TTL=${AUTH_ACCESS_TTL:-15m}
+      - AUTH_REFRESH_TTL=${AUTH_REFRESH_TTL:-720h}
+      - CONF_PATH= ${CONF_PATH}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - task-tracker-network
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: task-tracker-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_DATABASE: ${DB_NAME:-task_tracker}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    command: 
+      - --innodb_use_native_aio=0
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=1000
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER:-root}", "-p${DB_PASSWORD:-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - task-tracker-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: task-tracker-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      sh -c "
+        if [ -n '${REDIS_PASSWORD}' ]; then
+          redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+        else
+          redis-server --appendonly yes
+        fi
+      "
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - task-tracker-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  task-tracker-network:
+    driver: bridge

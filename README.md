@@ -1,6 +1,39 @@
 # task-tracker
 This is repo for task group tracking for test task
 
+Пример .env файла в корне проекта
+```bash
+# .env - переменные окружения для docker-compose
+
+# Приложение
+APP_PORT=8080
+# Путь до конфига внутри приложения
+CONF_PATH=/app/config.yaml
+
+# База данных MySQL
+DB_HOST=mysql
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=password
+DB_NAME=task_tracker
+DB_SSL_MODE=disable
+DB_TIMEOUT=5s
+DB_MAX_OPEN_CONNS=10
+DB_MAX_IDLE_CONNS=5
+
+# Redis
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# JWT Аутентификация
+AUTH_ACCESS_SECRET=test-access-secret-key-1234567890
+AUTH_REFRESH_SECRET=test-refresh-secret-key-0987654321
+AUTH_ISSUER=task-tracker
+AUTH_ACCESS_TTL=15m
+AUTH_REFRESH_TTL=720h
+```
 
 REST API сервис для управления задачами в командах с поддержкой ролевой модели, истории изменений и сложными SQL-запросами.
 Стек обязательных технологий:

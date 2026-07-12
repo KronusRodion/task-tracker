@@ -20,21 +20,26 @@ RUN go build -o /app/service ./cmd/task-tracker/main.go
 FROM alpine:3.23
 
 ENV TZ=UTC \
-    APP_USER=appuser \
-    APP_GROUP=appgroup \
-    APP_HOME=/app
+    app_USER=appuser \
+    app_GROUP=appgroup \
+    app_HOME=/app
 
 # Создание непривилегированного пользователя
-RUN addgroup -g 1000 -S ${APP_GROUP} \
-    && adduser -u 1000 -S ${APP_USER} -G ${APP_GROUP} -h ${APP_HOME}
+RUN addgroup -g 1000 -S ${app_GROUP} \
+    && adduser -u 1000 -S ${app_USER} -G ${app_GROUP} -h ${app_HOME}
 
-USER ${APP_USER}
+
 
 # Создание рабочей директории
 WORKDIR /app
 
-# Копирование скомпилированного бинарного файла
+# Копирование скомпилированного бинарного файла и конфига
 COPY --from=builder /app/service /app/service
+COPY --from=builder /app/configs/config.yaml /app/config.yaml
+
+RUN chown -R ${app_USER}:${app_GROUP} /app
+USER ${app_USER}
+
 EXPOSE 8080
 # Команда для запуска приложения
 CMD ["/app/service"]

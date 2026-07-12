@@ -6,21 +6,33 @@ import (
 	"time"
 )
 
-// DBConfig — конфигурация базы данных
 type DBConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	DBName   string `yaml:"dbname"`
-	SSLMode  string `yaml:"sslmode"`
-
+	Host         string        `yaml:"host"`
+	Port         int           `yaml:"port"`
+	User         string        `yaml:"user"`
+	Password     string        `yaml:"password"`
+	DBName       string        `yaml:"dbname"`
+	SSLMode      string        `yaml:"sslmode"`
 	Timeout      time.Duration `yaml:"timeout"`
 	MaxOpenConns int           `yaml:"max_open_conns"`
 	MaxIdleConns int           `yaml:"max_idle_conns"`
 }
 
-// Validate проверяет корректность конфигурации
+// Load загружает DBConfig из переменных окружения
+func (c *DBConfig) Load() error {
+	c.Host = getEnv("DB_HOST", "localhost")
+	c.Port = getEnvInt("DB_PORT", 3306)
+	c.User = getEnv("DB_USER", "root")
+	c.Password = getEnv("DB_PASSWORD", "password")
+	c.DBName = getEnv("DB_NAME", "task_tracker")
+	c.SSLMode = getEnv("DB_SSL_MODE", "disable")
+	c.Timeout = getEnvDuration("DB_TIMEOUT", 5*time.Second)
+	c.MaxOpenConns = getEnvInt("DB_MAX_OPEN_CONNS", 10)
+	c.MaxIdleConns = getEnvInt("DB_MAX_IDLE_CONNS", 5)
+	
+	return nil
+}
+
 func (c DBConfig) Validate() error {
 	var errs []string
 
@@ -37,7 +49,6 @@ func (c DBConfig) Validate() error {
 		errs = append(errs, "dbname cannot be empty")
 	}
 
-	// Проверка SSLMode
 	validSSL := map[string]bool{
 		"disable":     true,
 		"allow":       true,
@@ -72,27 +83,15 @@ func (c DBConfig) PGString() string {
 	if ssl == "" {
 		ssl = "disable"
 	}
-
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d",
-		c.Host,
-		c.Port,
-		c.User,
-		c.Password,
-		c.DBName,
-		ssl,
-		int(c.Timeout.Seconds()),
+		c.Host, c.Port, c.User, c.Password, c.DBName, ssl, int(c.Timeout.Seconds()),
 	)
 }
 
-
 func (c DBConfig) MySQLDSN() string {
-    return fmt.Sprintf(
-        "%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true",
-        c.User,
-        c.Password,
-        c.Host,
-        c.Port,
-        c.DBName,
-    )
+	return fmt.Sprintf(
+		"%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true",
+		c.User, c.Password, c.Host, c.Port, c.DBName,
+	)
 }

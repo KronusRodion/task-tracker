@@ -102,11 +102,11 @@ func (a *App) Run(ctx context.Context) {
 		}
 	}()
 
+	log.Println("app has started")
 	<-ctx.Done()
 
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	if err := a.server.Shutdown(shutCtx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}

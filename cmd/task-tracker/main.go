@@ -10,25 +10,20 @@ import (
 
 	"github.com/KronusRodion/task-tracker/internal/app"
 	"github.com/KronusRodion/task-tracker/internal/config"
-	"github.com/KronusRodion/task-tracker/internal/constants"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
-	path, ok := os.LookupEnv(constants.ConfPath)
-	if !ok || path == "" {
-		log.Fatalf("%s is not set", constants.ConfPath)
+
+	var cfg config.Config
+	err := cfg.Load()
+	if err != nil {
+		log.Fatal("configuration loading err:", err)
 	}
 
-	cfg, err := config.Load(path)
+	app, err := app.Build(&cfg)
 	if err != nil {
-		log.Fatal(err)
-	}
-
-
-	app, err := app.Build(cfg)
-	if err != nil {
-		log.Fatal(err)
+		log.Fatal("app building err:", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,18 +32,17 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	go func ()  {
+	go func() {
 		select {
 		case <-ctx.Done():
 		case sig := <-sigChan:
 			log.Println("Завершение по сигналу: ", sig)
 			cancel()
-		}	
+		}
 	}()
-	
 
 	app.Run(ctx)
-	ctx, cancel = context.WithTimeout(context.Background(), 5 * time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	app.Close(ctx)
 }

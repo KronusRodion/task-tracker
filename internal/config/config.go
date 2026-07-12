@@ -2,9 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
-
-	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -14,43 +11,52 @@ type Config struct {
 	Port     int      `yaml:"port"`
 }
 
-func (c *Config) Validate() error {
-	err := c.Auth.Validate()
-	if err != nil {
-		return err
+// Load загружает конфиг из переменных окружения
+func (c *Config) Load() error {
+	// Загружаем свои поля
+	c.Port = getEnvInt("PORT", 8080)
+	
+	// Рекурсивно загружаем вложенные структуры
+	if err := c.Auth.Load(); err != nil {
+		return fmt.Errorf("load auth: %w", err)
 	}
-
-	err = c.Database.Validate()
-	if err != nil {
-		return err
+	if err := c.Database.Load(); err != nil {
+		return fmt.Errorf("load database: %w", err)
 	}
-
-	err = c.Cache.Validate()
-	if err != nil {
-		return err
+	if err := c.Cache.Load(); err != nil {
+		return fmt.Errorf("load cache: %w", err)
 	}
-
-	if c.Port == 0 {
-		return fmt.Errorf("0 < port < 65536")
-	}
-
+	
 	return nil
 }
 
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read config file: %w", err)
+func (c *Config) Validate() error {
+	if err := c.Auth.Validate(); err != nil {
+		return err
 	}
-
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("unmarshal config: %w", err)
+	if err := c.Database.Validate(); err != nil {
+		return err
 	}
+	if err := c.Cache.Validate(); err != nil {
+		return err
+	}
+	if c.Port == 0 {
+		return fmt.Errorf("0 < port < 65536")
+	}
+	return nil
+}
 
+// LoadConfig загружает конфиг из переменных окружения
+func LoadConfig() (*Config, error) {
+	cfg := &Config{}
+	
+	if err := cfg.Load(); err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+	
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validate config: %w", err)
 	}
-
-	return &cfg, nil
+	
+	return cfg, nil
 }
