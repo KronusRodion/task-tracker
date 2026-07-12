@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	_ "github.com/go-sql-driver/mysql"
+	"time"
+
 	"github.com/KronusRodion/task-tracker/internal/app"
 	"github.com/KronusRodion/task-tracker/internal/config"
 	"github.com/KronusRodion/task-tracker/internal/constants"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
@@ -46,4 +48,7 @@ func main() {
 	
 
 	app.Run(ctx)
+	ctx, cancel = context.WithTimeout(context.Background(), 5 * time.Second)
+	defer cancel()
+	app.Close(ctx)
 }

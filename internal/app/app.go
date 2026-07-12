@@ -13,13 +13,17 @@ import (
 	"github.com/KronusRodion/task-tracker/internal/api/team"
 	"github.com/KronusRodion/task-tracker/internal/closer"
 	"github.com/KronusRodion/task-tracker/internal/config"
+	"github.com/KronusRodion/task-tracker/internal/metrics"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
 
 type App struct {
-	cfg    *config.Config
-	server *http.Server
+	cfg     *config.Config
+	server  *http.Server
+	metrics *metrics.Metrics
+	closer  *closer.Closer
 }
 
 func Build(cfg *config.Config) (*App, error) {
@@ -47,8 +51,6 @@ func Build(cfg *config.Config) (*App, error) {
 
 	closer.Add(db)
 
-	router := mux.NewRouter().PathPrefix("/api/v1").Subrouter()
-
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Cache.Address(),
 		Password: cfg.Cache.Password,
@@ -61,15 +63,23 @@ func Build(cfg *config.Config) (*App, error) {
 	}
 	closer.Add(client)
 
-	// инициализируем auth module + middleware
-	auth.NewModule(db, client, router, cfg.Auth)
+	m := metrics.NewMetrics()
 
-	tasks.NewModule(db, router)
-	team.NewModule(db, router)
+	mainRouter := mux.NewRouter()
+
+	mainRouter.Handle("/metrics", promhttp.Handler())
+
+	apiRouter := mainRouter.PathPrefix("/api/v1").Subrouter()
+
+	apiRouter.Use(m.Middleware)
+
+	auth.NewModule(db, client, apiRouter, cfg.Auth)
+	tasks.NewModule(db, apiRouter)
+	team.NewModule(db, apiRouter)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           router,
+		Handler:           mainRouter,
 		ReadTimeout:       15 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -77,11 +87,15 @@ func Build(cfg *config.Config) (*App, error) {
 		MaxHeaderBytes:    1 << 20, // 1 МБ
 	}
 
-	return &App{cfg: cfg, server: server}, nil
+	return &App{
+		cfg:     cfg,
+		server:  server,
+		metrics: m,
+		closer: closer,
+	}, nil
 }
 
 func (a *App) Run(ctx context.Context) {
-
 	go func() {
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
@@ -96,4 +110,8 @@ func (a *App) Run(ctx context.Context) {
 	if err := a.server.Shutdown(shutCtx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
+}
+
+func (a *App) Close(ctx context.Context) {
+	a.closer.Close(ctx)
 }
