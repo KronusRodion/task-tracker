@@ -11,13 +11,12 @@ import (
 
 // Metrics хранит все метрики
 type Metrics struct {
-	RequestsTotal    *prometheus.CounterVec
-	RequestDuration  *prometheus.HistogramVec
-	RequestSize      *prometheus.SummaryVec
-	ResponseSize     *prometheus.SummaryVec
-	ErrorsTotal      *prometheus.CounterVec
-	ActiveRequests   prometheus.Gauge
-	RequestInFlight  prometheus.Gauge
+	RequestsTotal   *prometheus.CounterVec
+	RequestDuration *prometheus.HistogramVec
+	RequestSize     *prometheus.SummaryVec
+	ResponseSize    *prometheus.SummaryVec
+	ErrorsTotal     *prometheus.CounterVec
+	RequestInFlight prometheus.Gauge
 }
 
 // NewMetrics создает новый экземпляр метрик
@@ -61,12 +60,6 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"method", "path", "status"},
 		),
-		ActiveRequests: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "http_active_requests",
-				Help: "Number of active HTTP requests",
-			},
-		),
 		RequestInFlight: promauto.NewGauge(
 			prometheus.GaugeOpts{
 				Name: "http_requests_in_flight",
@@ -79,13 +72,8 @@ func NewMetrics() *Metrics {
 // Middleware возвращает HTTP middleware для сбора метрик
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Увеличиваем счетчик активных запросов
-		m.ActiveRequests.Inc()
 		m.RequestInFlight.Inc()
-		defer func() {
-			m.ActiveRequests.Dec()
-			m.RequestInFlight.Dec()
-		}()
+		defer m.RequestInFlight.Dec()
 
 		start := time.Now()
 
@@ -96,19 +84,13 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(wrapped, r)
 
-		// Собираем метрики
 		duration := time.Since(start).Seconds()
 		status := strconv.Itoa(wrapped.statusCode)
 		method := r.Method
 		path := r.URL.Path
 
-		// Логируем количество запросов
 		m.RequestsTotal.WithLabelValues(method, path, status).Inc()
-
-		// Логируем длительность запроса
 		m.RequestDuration.WithLabelValues(method, path, status).Observe(duration)
-
-		// Логируем размер ответа
 		m.ResponseSize.WithLabelValues(method, path, status).Observe(float64(wrapped.size))
 
 		if wrapped.statusCode >= 400 {

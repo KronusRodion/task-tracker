@@ -46,6 +46,11 @@ AUTH_ACCESS_TTL=15m
 AUTH_REFRESH_TTL=720h
 ```
 
+# Metrics
+The application collects runtime, endpoints and network stats and provide /metrics endpoint in Prometheus format. 
+
+
+# Technical specification
 REST API сервис для управления задачами в командах с поддержкой ролевой модели, истории изменений и сложными SQL-запросами.
 Стек обязательных технологий:
 ·	Go
