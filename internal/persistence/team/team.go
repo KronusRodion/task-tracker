@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/KronusRodion/task-tracker/internal/persistence"
@@ -43,7 +42,6 @@ INSERT INTO teams (
 		team.CreatedAt,
 		team.UpdatedAt,
 	)
-	log.Println("create team err: ", err, team)
 	return err
 }
 
@@ -129,4 +127,35 @@ WHERE tm.user_id = UUID_TO_BIN(?)
 	}
 
 	return teams, nil
+}
+
+func (r Repository) GetTeamStats(ctx context.Context, teamID uuid.UUID) (domain.TeamStats, error) {
+	exec, err := persistence.GetExec(ctx)
+	if err != nil {
+		return domain.TeamStats{}, err
+	}
+
+query := `
+SELECT
+	t.name AS team_name,
+	COUNT(tm.user_id) AS member_count,
+	COUNT(CASE WHEN task.status = 'done' AND task.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) AS done_tasks_count
+FROM teams t
+LEFT JOIN team_members tm ON t.id = tm.team_id
+LEFT JOIN tasks task ON t.id = task.team_id
+WHERE t.id = UUID_TO_BIN(?)
+GROUP BY t.id, t.name
+`
+	var stat domain.TeamStats
+	err = exec.QueryRowContext(ctx, query, teamID).Scan(&stat.TeamName, &stat.MemberCount, &stat.DoneTasksCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.TeamStats{}, domain.ErrTeamNotFound
+	}
+
+	if err != nil {
+		return domain.TeamStats{}, err
+	}
+
+	
+	return stat, nil
 }

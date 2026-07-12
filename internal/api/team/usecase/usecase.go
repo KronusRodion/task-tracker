@@ -115,3 +115,25 @@ func (u TeamsUsecase) GetUserTeams(
 	})
 	return team, err
 }
+
+func (u TeamsUsecase) GetTeamStats(
+	ctx context.Context,
+	teamID uuid.UUID,
+	userID uuid.UUID,
+) (domain.TeamStats, error) {
+	var stat domain.TeamStats
+	err := u.uow.Do(ctx, func(ctx context.Context) error {
+		// Проверка прав доступа к команде
+		isMember, err := u.members.IsMember(ctx, teamID, userID)
+		if err != nil {
+			return err
+		}
+		if !isMember {
+			return domain.ErrForbidden
+		}
+
+		stat, err = u.teams.GetTeamStats(ctx, teamID)
+		return err
+	})
+	return stat, err
+}

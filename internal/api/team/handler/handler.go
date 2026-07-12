@@ -33,6 +33,12 @@ type TeamsUsecase interface {
 		invitedBy uuid.UUID,
 		role domain.TeamRole,
 	) error
+
+	GetTeamStats(
+		ctx context.Context,
+		teamID uuid.UUID,
+		userID uuid.UUID,
+	) (domain.TeamStats, error)
 }
 
 type Handler struct {
@@ -52,6 +58,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	api.Use(middleware.Logger)
 	api.HandleFunc("", h.CreateTeam).Methods(http.MethodPost)
 	api.HandleFunc("", h.ListTeams).Methods(http.MethodGet)
+	api.HandleFunc("/{id}/stats", h.GetTeamStats).Methods(http.MethodGet)
 	api.HandleFunc("/{id}/invite", h.InviteUser).Methods(http.MethodPost)
 }
 
@@ -193,4 +200,43 @@ func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetAllTeamsStats godoc
+//
+//	@Summary		Получение статистики по всем командам
+//	@Description	Возвращает статистику по всем командам (только для админов)
+//	@Tags			teams
+//	@Produce		json
+//	@Success		200	{array}	domain.TeamStats
+//	@Failure		401	{object}	handler.WriteError
+//	@Failure		403	{object}	handler.WriteError
+//	@Failure		500	{object}	handler.WriteError
+//	@Router			/api/v1/teams/stats [get]
+func (h *Handler) GetTeamStats(w http.ResponseWriter, r *http.Request) {
+	userID, err := domain.UserIDFromContext(r.Context())
+	if err != nil {
+		handler.WriteError(w, http.StatusUnauthorized, "unauthorized", err.Error())
+		return
+	}
+
+	teamIDStr := mux.Vars(r)["id"]
+	teamID, err := uuid.Parse(teamIDStr)
+	if err != nil {
+		handler.WriteError(w, http.StatusBadRequest, "invalid team id", err.Error())
+		return
+	}
+
+	stats, err := h.teams.GetTeamStats(r.Context(), teamID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrForbidden), errors.Is(err, domain.ErrTeamNotFound):
+			handler.WriteError(w, http.StatusForbidden, "forbidden", err.Error())
+		default:
+			handler.WriteError(w, http.StatusInternalServerError, "get team stats error", err.Error())
+		}
+		return
+	}
+
+	handler.WriteJSON(w, http.StatusOK, stats)
 }

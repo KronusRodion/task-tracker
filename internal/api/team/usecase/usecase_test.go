@@ -30,6 +30,11 @@ func (m *MockTeamRepository) GetUserTeams(ctx context.Context, userID uuid.UUID)
 	return args.Get(0).([]domain.Team), args.Error(1)
 }
 
+func (m *MockTeamRepository) GetTeamStats(ctx context.Context, teamID uuid.UUID) (domain.TeamStats, error) {
+	args := m.Called(ctx, teamID)
+	return args.Get(0).(domain.TeamStats), args.Error(1)
+}
+
 type MockTeamMemberRepository struct{ mock.Mock }
 
 func (m *MockTeamMemberRepository) AddMember(ctx context.Context, teamID, userID uuid.UUID, role domain.TeamRole) error {
@@ -204,4 +209,37 @@ func (s *TeamsUsecaseSuite) TestGetUserTeams_Error() {
 
 	_, err := s.uc.GetUserTeams(context.Background(), userID)
 	s.Error(err)
+}
+
+// ====================== GetTeamStats ======================
+
+func (s *TeamsUsecaseSuite) TestGetTeamStats_Success() {
+	teamID := uuid.New()
+	userID := uuid.New()
+	stats := domain.TeamStats{
+		TeamName:       "Test Team",
+		MemberCount:    3,
+		DoneTasksCount: 10,
+	}
+
+	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.members.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
+	s.teams.On("GetTeamStats", mock.Anything, teamID).Return(stats, nil)
+
+	result, err := s.uc.GetTeamStats(context.Background(), teamID, userID)
+	s.NoError(err)
+	s.Equal(stats, result)
+}
+
+func (s *TeamsUsecaseSuite) TestGetTeamStats_Error() {
+	teamID := uuid.New()
+	userID := uuid.New()
+
+	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.members.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
+	s.teams.On("GetTeamStats", mock.Anything, teamID).Return(domain.TeamStats{}, domain.ErrTeamNotFound)
+
+	_, err := s.uc.GetTeamStats(context.Background(), teamID, userID)
+	s.Error(err)
+	s.Equal(domain.ErrTeamNotFound, err)
 }

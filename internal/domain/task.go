@@ -70,3 +70,13 @@ type TaskPatch struct {
 	Status      *TaskStatus `json:"status,omitempty"`
 	AssigneeID  *uuid.UUID  `json:"assignee_id,omitempty"`
 }
+
+
+
+// TopUser represents a user ranked by task count
+type TopUser struct {
+	UserID     uuid.UUID `json:"user_id"`
+	Username   string    `json:"username"`
+	TaskCount  int       `json:"task_count"`
+	Rank       int       `json:"rank"`
+}

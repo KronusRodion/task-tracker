@@ -11,6 +11,7 @@ type TeamRepository interface {
 	Create(ctx context.Context, team domain.Team) error
 	GetByID(ctx context.Context, id uuid.UUID) (domain.Team, error)
 	GetUserTeams(ctx context.Context, userID uuid.UUID) ([]domain.Team, error)
+	GetTeamStats(ctx context.Context, teamID uuid.UUID) (domain.TeamStats, error)
 }
 
 type TeamMemberRepository interface {

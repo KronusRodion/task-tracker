@@ -16,3 +16,9 @@ type Team struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+type TeamStats struct {
+	TeamName       string `json:"team_name"`
+	MemberCount    int    `json:"member_count"`
+	DoneTasksCount int    `json:"done_tasks_count"`
+}

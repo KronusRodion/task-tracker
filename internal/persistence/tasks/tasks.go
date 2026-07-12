@@ -16,6 +16,7 @@ func NewRepository() Repository {
 	return Repository{}
 }
 
+
 func (r Repository) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
 	exec, err := persistence.GetExec(ctx)
 	if err != nil {
@@ -60,7 +61,7 @@ VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?)
 	}
 
 	task.ID = uint64(id)
-	
+
 	return task, nil
 }
 
