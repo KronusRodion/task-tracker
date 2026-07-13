@@ -74,7 +74,7 @@ func Build(cfg *config.Config) (*App, error) {
 	apiRouter.Use(m.Middleware)
 
 	auth.NewModule(db, client, apiRouter, cfg.Auth)
-	tasks.NewModule(db, apiRouter)
+	tasks.NewModule(db, client, apiRouter)
 	team.NewModule(db, apiRouter)
 
 	server := &http.Server{

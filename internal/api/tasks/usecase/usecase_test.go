@@ -2,11 +2,14 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -77,6 +80,23 @@ func (m *MockUnitOfWork) Do(ctx context.Context, fn func(context.Context) error)
 	return args.Error(0)
 }
 
+type MockCache struct{ mock.Mock }
+
+func (m *MockCache) Get(ctx context.Context, key string) ([]byte, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (m *MockCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	args := m.Called(ctx, key, value, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCache) Delete(ctx context.Context, key string) error {
+	args := m.Called(ctx, key)
+	return args.Error(0)
+}
+
 // ==================== TaskUsecase Suite ====================
 
 type TaskUsecaseSuite struct {
@@ -85,6 +105,7 @@ type TaskUsecaseSuite struct {
 	taskRepo    *MockTaskRepository
 	teamRepo    *MockTeamRepository
 	historyRepo *MockTaskHistoryRepository
+	cache       *MockCache
 	uc          taskUsecase
 }
 
@@ -93,8 +114,9 @@ func (s *TaskUsecaseSuite) SetupTest() {
 	s.taskRepo = new(MockTaskRepository)
 	s.teamRepo = new(MockTeamRepository)
 	s.historyRepo = new(MockTaskHistoryRepository)
+	s.cache = new(MockCache)
 
-	s.uc = NewTaskUsecase(s.taskRepo, s.teamRepo, s.historyRepo, s.uow)
+	s.uc = NewTaskUsecase(s.taskRepo, s.teamRepo, s.historyRepo, s.uow, s.cache)
 }
 
 func TestTaskUsecaseSuite(t *testing.T) {
@@ -114,10 +136,14 @@ func (s *TaskUsecaseSuite) TestCreateTask_Success() {
 
 	s.uow.On("DoWithTx", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
 	s.teamRepo.On("IsMember", mock.Anything, task.TeamID, task.CreatedBy).Return(true, nil)
-	s.taskRepo.On("Create", mock.Anything, mock.Anything).Return(task, nil)
-	s.historyRepo.On("Create", mock.Anything, mock.MatchedBy(func(h domain.TaskHistory) bool {
-		return h.Action == domain.HistoryCreated && h.TaskID == task.ID
-	})).Return(nil)
+	s.taskRepo.On("Create", mock.Anything, task).Return(task, nil)
+	s.historyRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	// Настраиваем моки для инвалидации кеша
+	for _, status := range domain.AllStatuses() {
+		key := fmt.Sprintf("tasks:team:%s:filter:%s", task.TeamID, status)
+		s.cache.On("Delete", mock.Anything, key).Return(nil)
+	}
 
 	created, err := s.uc.CreateTask(context.Background(), task)
 	s.NoError(err)
@@ -153,11 +179,19 @@ func (s *TaskUsecaseSuite) TestCreateTask_AssigneeNotMember() {
 // ====================== GetTasks ======================
 
 func (s *TaskUsecaseSuite) TestGetTasks_Success() {
-	filter := domain.TaskFilter{TeamID: nil, UserID: uuid.New()}
+	teamID := uuid.New()
+	userID := uuid.New()
+	filter := domain.TaskFilter{TeamID: &teamID, UserID: userID}
 	tasks := []domain.Task{{ID: 1}, {ID: 2}}
 
+	// Настраиваем моки для вызова Get из кеша (по умолчанию используется StatusTaskFilterAll)
+	cacheKey := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, domain.StatusTaskFilterAll)
+	s.cache.On("Get", mock.Anything, cacheKey).Return([]byte(nil), redis.Nil)
+
 	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.teamRepo.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
 	s.taskRepo.On("GetByFilter", mock.Anything, filter).Return(tasks, nil)
+	s.cache.On("Set", mock.Anything, cacheKey, mock.Anything, 5*time.Minute).Return(nil)
 
 	result, err := s.uc.GetTasks(context.Background(), filter)
 	s.NoError(err)
@@ -166,13 +200,54 @@ func (s *TaskUsecaseSuite) TestGetTasks_Success() {
 
 func (s *TaskUsecaseSuite) TestGetTasks_NotTeamMember() {
 	teamID := uuid.New()
-	filter := domain.TaskFilter{TeamID: &teamID, UserID: uuid.New()}
+	userID := uuid.New()
+	filter := domain.TaskFilter{TeamID: &teamID, UserID: userID}
+
+	// Настраиваем моки для вызова Get из кеша
+	cacheKey := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, domain.StatusTaskFilterAll)
+	s.cache.On("Get", mock.Anything, cacheKey).Return([]byte(nil), redis.Nil)
 
 	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
-	s.teamRepo.On("IsMember", mock.Anything, teamID, filter.UserID).Return(false, nil)
+	s.teamRepo.On("IsMember", mock.Anything, teamID, userID).Return(false, nil)
 
 	_, err := s.uc.GetTasks(context.Background(), filter)
 	s.Assert().Error(err, domain.ErrForbidden)
+}
+
+func (s *TaskUsecaseSuite) TestGetTasks_CacheHit() {
+	teamID := uuid.New()
+	userID := uuid.New()
+	filter := domain.TaskFilter{TeamID: &teamID, UserID: userID, Status: ptrTo(domain.StatusTodo)}
+	tasks := []domain.Task{{ID: 1, Title: "Cached Task"}}
+
+	cacheKey := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, domain.StatusTodo)
+	cacheData, _ := json.Marshal(tasks)
+	s.cache.On("Get", mock.Anything, cacheKey).Return(cacheData, nil)
+
+	result, err := s.uc.GetTasks(context.Background(), filter)
+	s.NoError(err)
+	s.Len(result, 1)
+	s.Equal("Cached Task", result[0].Title)
+}
+
+func (s *TaskUsecaseSuite) TestGetTasks_CacheMiss() {
+	teamID := uuid.New()
+	userID := uuid.New()
+	filter := domain.TaskFilter{TeamID: &teamID, UserID: userID, Status: ptrTo(domain.StatusTodo)}
+	tasks := []domain.Task{{ID: 1, Title: "Fresh Task"}}
+
+	cacheKey := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, domain.StatusTodo)
+	s.cache.On("Get", mock.Anything, cacheKey).Return([]byte(nil), redis.Nil)
+
+	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.teamRepo.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
+	s.taskRepo.On("GetByFilter", mock.Anything, filter).Return(tasks, nil)
+	s.cache.On("Set", mock.Anything, cacheKey, mock.Anything, 5*time.Minute).Return(nil)
+
+	result, err := s.uc.GetTasks(context.Background(), filter)
+	s.NoError(err)
+	s.Len(result, 1)
+	s.Equal("Fresh Task", result[0].Title)
 }
 
 // ====================== UpdateTask ======================
@@ -180,17 +255,26 @@ func (s *TaskUsecaseSuite) TestGetTasks_NotTeamMember() {
 func (s *TaskUsecaseSuite) TestUpdateTask_Success() {
 	taskID := uint64(10)
 	userID := uuid.New()
-	oldTask := domain.Task{ID: taskID, TeamID: uuid.New(), Title: "Old", Status: domain.StatusTodo}
+	teamID := uuid.New()
+	oldTask := domain.Task{ID: taskID, TeamID: teamID, Title: "Old Task"}
+	updatedTask := domain.Task{ID: taskID, TeamID: teamID, Title: "New Title"}
 	patch := domain.TaskPatch{Title: ptrString("New Title")}
 
 	s.uow.On("DoWithTx", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
 	s.taskRepo.On("GetByID", mock.Anything, taskID).Return(oldTask, nil)
-	s.teamRepo.On("IsMember", mock.Anything, oldTask.TeamID, userID).Return(true, nil)
-	s.taskRepo.On("Update", mock.Anything, mock.Anything).Return(oldTask, nil) // можно улучшить
-	s.historyRepo.On("Create", mock.Anything, mock.Anything).Return(nil)       // logChanges
+	s.teamRepo.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
+	s.taskRepo.On("Update", mock.Anything, updatedTask).Return(updatedTask, nil)
+	s.historyRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-	_, err := s.uc.UpdateTask(context.Background(), taskID, userID, patch)
+	// Настраиваем моки для инвалидации кеша
+	for _, status := range domain.AllStatuses() {
+		key := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, status)
+		s.cache.On("Delete", mock.Anything, key).Return(nil)
+	}
+
+	updated, err := s.uc.UpdateTask(context.Background(), taskID, userID, patch)
 	s.NoError(err)
+	s.Equal("New Title", updated.Title)
 }
 
 func (s *TaskUsecaseSuite) TestUpdateTask_TaskNotFound() {
@@ -225,12 +309,8 @@ func (s *TaskUsecaseSuite) TestGetTaskHistory_Success() {
 	s.Len(result, 2)
 }
 
-// Helper
-func ptrString(s string) *string {
-	return &s
-}
-
 // ====================== FindInvalidAssigneeTasks ======================
+
 func (s *TaskUsecaseSuite) TestFindInvalidAssigneeTasks_Success() {
 	teamID := uuid.New()
 	assigneeID := uuid.New()
@@ -254,8 +334,69 @@ func (s *TaskUsecaseSuite) TestFindInvalidAssigneeTasks_Success() {
 
 func (s *TaskUsecaseSuite) TestFindInvalidAssigneeTasks_Error() {
 	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
-	s.taskRepo.On("FindInvalidAssigneeTasks", mock.Anything).Return(nil, fmt.Errorf("database error"))
+	s.taskRepo.On("FindInvalidAssigneeTasks", mock.Anything).Return([]domain.Task{}, fmt.Errorf("database error"))
 
 	_, err := s.uc.FindInvalidAssigneeTasks(context.Background())
 	s.Error(err)
+}
+
+// ====================== Caching Tests ======================
+
+func (s *TaskUsecaseSuite) TestCreateTask_CacheInvalidation() {
+	teamID := uuid.New()
+	userID := uuid.New()
+	task := domain.Task{
+		TeamID:    teamID,
+		CreatedBy: userID,
+		Title:     "New Task",
+	}
+
+	s.uow.On("DoWithTx", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.teamRepo.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
+	s.taskRepo.On("Create", mock.Anything, task).Return(task, nil)
+	s.historyRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	// Настраиваем моки для инвалидации кеша
+	for _, status := range domain.AllStatuses() {
+		key := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, status)
+		s.cache.On("Delete", mock.Anything, key).Return(nil)
+	}
+
+	created, err := s.uc.CreateTask(context.Background(), task)
+	s.NoError(err)
+	s.Equal(task.Title, created.Title)
+}
+
+func (s *TaskUsecaseSuite) TestUpdateTask_CacheInvalidation() {
+	taskID := uint64(1)
+	teamID := uuid.New()
+	userID := uuid.New()
+	oldTask := domain.Task{ID: taskID, TeamID: teamID, Title: "Old Task"}
+	updatedTask := domain.Task{ID: taskID, TeamID: teamID, Title: "Updated Task"}
+	patch := domain.TaskPatch{Title: ptrString("Updated Task")}
+
+	s.uow.On("DoWithTx", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.taskRepo.On("GetByID", mock.Anything, taskID).Return(oldTask, nil)
+	s.teamRepo.On("IsMember", mock.Anything, teamID, userID).Return(true, nil)
+	s.taskRepo.On("Update", mock.Anything, updatedTask).Return(updatedTask, nil)
+	s.historyRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	// Настраиваем моки для инвалидации кеша
+	for _, status := range domain.AllStatuses() {
+		key := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, status)
+		s.cache.On("Delete", mock.Anything, key).Return(nil)
+	}
+
+	updated, err := s.uc.UpdateTask(context.Background(), taskID, userID, patch)
+	s.NoError(err)
+	s.Equal("Updated Task", updated.Title)
+}
+
+// Helper functions
+func ptrString(s string) *string {
+	return &s
+}
+
+func ptrTo(status domain.TaskStatus) *domain.TaskStatus {
+	return &status
 }

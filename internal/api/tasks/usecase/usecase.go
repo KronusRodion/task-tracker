@@ -3,12 +3,16 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/KronusRodion/task-tracker/internal/persistence"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type taskUsecase struct {
@@ -16,6 +20,7 @@ type taskUsecase struct {
 	teamRepo    TeamRepository
 	historyRepo TaskHistoryRepository
 	uow         persistence.UnitOfWork
+	cache       Cache
 }
 
 func NewTaskUsecase(
@@ -23,12 +28,14 @@ func NewTaskUsecase(
 	teamRepo TeamRepository,
 	historyRepo TaskHistoryRepository,
 	uow persistence.UnitOfWork,
+	cache Cache,
 ) taskUsecase {
 	return taskUsecase{
 		taskRepo:    taskRepo,
 		teamRepo:    teamRepo,
 		historyRepo: historyRepo,
 		uow:         uow,
+		cache:       cache,
 	}
 }
 
@@ -55,6 +62,10 @@ func (u taskUsecase) CreateTask(ctx context.Context, task domain.Task) (domain.T
 			return err
 		}
 
+		if err := u.invalidateCache(ctx, task.TeamID); err != nil {
+			log.Printf("Failed to invalidate cache: %v", err)
+		}
+
 		err = u.historyRepo.Create(ctx, domain.TaskHistory{
 			TaskID:    task.ID,
 			Action:    domain.HistoryCreated,
@@ -64,13 +75,30 @@ func (u taskUsecase) CreateTask(ctx context.Context, task domain.Task) (domain.T
 
 		return err
 	})
-
 }
 
 func (u taskUsecase) GetTasks(ctx context.Context, filter domain.TaskFilter) ([]domain.Task, error) {
 	var tasks []domain.Task
 	var err error
 
+	// Формируем ключ для кеша
+	status := domain.StatusTaskFilterAll
+	if filter.Status != nil {
+		status = *filter.Status
+	}
+	cacheKey := fmt.Sprintf("tasks:team:%s:filter:%s", filter.TeamID, status)
+
+	// Проверяем наличие кеша
+	cachedTasks, err := u.getCachedTasks(ctx, cacheKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if cachedTasks != nil {
+		return cachedTasks, nil
+	}
+
+	// Если кеша нет, запрашиваем данные из базы
 	err = u.uow.Do(ctx, func(ctx context.Context) error {
 		if filter.TeamID != nil {
 			if ok, err := u.teamRepo.IsMember(ctx, *filter.TeamID, filter.UserID); err != nil {
@@ -84,7 +112,54 @@ func (u taskUsecase) GetTasks(ctx context.Context, filter domain.TaskFilter) ([]
 		return err
 	})
 
-	return tasks, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Сохраняем результат в кеш
+	if err := u.cacheTasks(ctx, cacheKey, tasks, 5*time.Minute); err != nil {
+		log.Printf("Failed to cache tasks: %v", err)
+	}
+
+	return tasks, nil
+}
+
+func (u taskUsecase) getCachedTasks(ctx context.Context, key string) ([]domain.Task, error) {
+	cachedData, err := u.cache.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var tasks []domain.Task
+	if err := json.Unmarshal(cachedData, &tasks); err != nil {
+		return nil, err
+	}
+
+	return tasks, nil
+}
+
+func (u taskUsecase) cacheTasks(ctx context.Context, key string, tasks []domain.Task, ttl time.Duration) error {
+	data, err := json.Marshal(tasks)
+	if err != nil {
+		return err
+	}
+
+	return u.cache.Set(ctx, key, data, ttl)
+}
+
+func (u taskUsecase) invalidateCache(ctx context.Context, teamID uuid.UUID) error {
+	// Удаляем кеш для всех возможных статусов задач
+	for _, status := range domain.AllStatuses() {
+		key := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, status)
+		if err := u.cache.Delete(ctx, key); err != nil {
+			log.Printf("Failed to delete cache key %s: %v", key, err)
+		}
+	}
+
+	return nil
 }
 
 func (u taskUsecase) UpdateTask(
@@ -139,6 +214,11 @@ func (u taskUsecase) UpdateTask(
 		result, err = u.taskRepo.Update(ctx, updated)
 		if err != nil {
 			return err
+		}
+
+		// Инвалидация кеша после обновления задачи
+		if err := u.invalidateCache(ctx, task.TeamID); err != nil {
+			log.Printf("Failed to invalidate cache: %v", err)
 		}
 
 		return u.logChanges(ctx, task, result, userID)

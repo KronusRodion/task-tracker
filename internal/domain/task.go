@@ -15,6 +15,11 @@ const (
 	StatusDone       TaskStatus = "done"
 )
 
+const (
+	// Используется как ключ кеширования всех задач
+	StatusTaskFilterAll TaskStatus = "all"
+)
+
 func (s TaskStatus) IsValid() bool {
 	switch s {
 	case StatusTodo, StatusInProgress, StatusReview, StatusDone:
@@ -54,6 +59,11 @@ type Task struct {
 	UpdatedAt time.Time
 }
 
+// AllStatuses возвращает все возможные статусы задач, включая ключ для всех задач
+func AllStatuses() []TaskStatus {
+	return []TaskStatus{StatusTodo, StatusInProgress, StatusReview, StatusDone, StatusTaskFilterAll}
+}
+
 type TaskFilter struct {
 	TeamID     *uuid.UUID
 	UserID     uuid.UUID
@@ -71,12 +81,10 @@ type TaskPatch struct {
 	AssigneeID  *uuid.UUID  `json:"assignee_id,omitempty"`
 }
 
-
-
 // TopUser represents a user ranked by task count
 type TopUser struct {
-	UserID     uuid.UUID `json:"user_id"`
-	Username   string    `json:"username"`
-	TaskCount  int       `json:"task_count"`
-	Rank       int       `json:"rank"`
+	UserID    uuid.UUID `json:"user_id"`
+	Username  string    `json:"username"`
+	TaskCount int       `json:"task_count"`
+	Rank      int       `json:"rank"`
 }
