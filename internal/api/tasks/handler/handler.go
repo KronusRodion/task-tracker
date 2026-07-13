@@ -19,6 +19,7 @@ type TasksUsecase interface {
 	GetTasks(ctx context.Context, filter domain.TaskFilter) ([]domain.Task, error)
 	UpdateTask(ctx context.Context, taskID uint64, userID uuid.UUID, patch domain.TaskPatch) (domain.Task, error)
 	GetTaskHistory(ctx context.Context, taskID uint64) ([]domain.TaskHistory, error)
+	FindInvalidAssigneeTasks(ctx context.Context) ([]domain.Task, error)
 }
 
 type TaskHandler struct {
@@ -39,6 +40,7 @@ func (h TaskHandler) RegisterRoutes(r *gorilla.Router) {
 	api.HandleFunc("", h.GetTasks).Methods(http.MethodGet)
 	api.HandleFunc("/{id}", h.UpdateTask).Methods(http.MethodPatch)
 	api.HandleFunc("/{id}/history", h.GetTaskHistory).Methods(http.MethodGet)
+	api.HandleFunc("/invalid-assignees", h.FindInvalidAssigneeTasks).Methods(http.MethodGet)
 }
 
 // @Summary Создать задачу
@@ -127,6 +129,36 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tasks, err := h.usecase.GetTasks(r.Context(), filter)
+	if err != nil {
+		handler.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+
+	resp := make([]TaskResponse, len(tasks))
+	for i, t := range tasks {
+		resp[i].FromDomain(t)
+	}
+
+	handler.WriteJSON(w, http.StatusOK, resp)
+}
+
+// @Summary Найти задачи с некорректным assignee
+// @Description Возвращает список задач, где assignee не является членом команды этой задачи
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "JWT токен"
+// @Success 200 {array} TaskResponse
+// @Failure 401 {object} handler.ErrorResponse "unauthorized"
+// @Failure 500 {object} handler.ErrorResponse "internal_error"
+// @Router /api/v1/tasks/invalid-assignees [get]
+func (h *TaskHandler) FindInvalidAssigneeTasks(w http.ResponseWriter, r *http.Request) {
+	if _, err := domain.UserIDFromContext(r.Context()); err != nil {
+		handler.WriteError(w, http.StatusUnauthorized, "unauthorized", err.Error())
+		return
+	}
+
+	tasks, err := h.usecase.FindInvalidAssigneeTasks(r.Context())
 	if err != nil {
 		handler.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return

@@ -12,6 +12,7 @@ type TaskRepository interface {
 	GetByID(ctx context.Context, id uint64) (domain.Task, error)
 	Update(ctx context.Context, task domain.Task) (domain.Task, error)
 	GetByFilter(ctx context.Context, filter domain.TaskFilter) ([]domain.Task, error)
+	FindInvalidAssigneeTasks(ctx context.Context) ([]domain.Task, error)
 }
 
 type TaskHistoryRepository interface {

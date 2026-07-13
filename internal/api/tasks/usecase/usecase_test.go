@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/KronusRodion/task-tracker/internal/domain"
@@ -31,6 +32,11 @@ func (m *MockTaskRepository) Update(ctx context.Context, task domain.Task) (doma
 
 func (m *MockTaskRepository) GetByFilter(ctx context.Context, filter domain.TaskFilter) ([]domain.Task, error) {
 	args := m.Called(ctx, filter)
+	return args.Get(0).([]domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) FindInvalidAssigneeTasks(ctx context.Context) ([]domain.Task, error) {
+	args := m.Called(ctx)
 	return args.Get(0).([]domain.Task), args.Error(1)
 }
 
@@ -222,4 +228,34 @@ func (s *TaskUsecaseSuite) TestGetTaskHistory_Success() {
 // Helper
 func ptrString(s string) *string {
 	return &s
+}
+
+// ====================== FindInvalidAssigneeTasks ======================
+func (s *TaskUsecaseSuite) TestFindInvalidAssigneeTasks_Success() {
+	teamID := uuid.New()
+	assigneeID := uuid.New()
+	tasks := []domain.Task{
+		{
+			ID:         1,
+			TeamID:     teamID,
+			AssigneeID: &assigneeID,
+			Title:      "Invalid Assignee Task",
+		},
+	}
+
+	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.taskRepo.On("FindInvalidAssigneeTasks", mock.Anything).Return(tasks, nil)
+
+	result, err := s.uc.FindInvalidAssigneeTasks(context.Background())
+	s.NoError(err)
+	s.Len(result, 1)
+	s.Equal("Invalid Assignee Task", result[0].Title)
+}
+
+func (s *TaskUsecaseSuite) TestFindInvalidAssigneeTasks_Error() {
+	s.uow.On("Do", mock.Anything, mock.AnythingOfType("func(context.Context) error")).Return(nil)
+	s.taskRepo.On("FindInvalidAssigneeTasks", mock.Anything).Return(nil, fmt.Errorf("database error"))
+
+	_, err := s.uc.FindInvalidAssigneeTasks(context.Background())
+	s.Error(err)
 }

@@ -16,7 +16,6 @@ func NewRepository() Repository {
 	return Repository{}
 }
 
-
 func (r Repository) Create(ctx context.Context, task domain.Task) (domain.Task, error) {
 	exec, err := persistence.GetExec(ctx)
 	if err != nil {
@@ -230,6 +229,62 @@ OFFSET ?
 			return nil, err
 		}
 
+		tasks = append(tasks, task)
+	}
+
+	return tasks, rows.Err()
+}
+
+func (r Repository) FindInvalidAssigneeTasks(ctx context.Context) ([]domain.Task, error) {
+	exec, err := persistence.GetExec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	const query = `
+SELECT
+	t.id,
+	BIN_TO_UUID(t.team_id) as team_id,
+	t.title,
+	t.description,
+	t.status,
+	t.priority,
+	BIN_TO_UUID(t.created_by) as created_by,
+	BIN_TO_UUID(t.assignee_id) as assignee_id,
+	t.created_at,
+	t.updated_at
+FROM tasks t
+WHERE NOT EXISTS (
+	SELECT 1
+	FROM team_members tm
+	WHERE tm.team_id = t.team_id AND tm.user_id = t.assignee_id
+)
+`
+
+	rows, err := exec.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tasks := make([]domain.Task, 0)
+
+	for rows.Next() {
+		var task domain.Task
+		if err := rows.Scan(
+			&task.ID,
+			&task.TeamID,
+			&task.Title,
+			&task.Description,
+			&task.Status,
+			&task.Priority,
+			&task.CreatedBy,
+			&task.AssigneeID,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
 		tasks = append(tasks, task)
 	}
 

@@ -163,6 +163,18 @@ func (u taskUsecase) GetTaskHistory(
 	return history, err
 }
 
+func (u taskUsecase) FindInvalidAssigneeTasks(ctx context.Context) ([]domain.Task, error) {
+	var tasks []domain.Task
+
+	err := u.uow.Do(ctx, func(ctx context.Context) error {
+		var err error
+		tasks, err = u.taskRepo.FindInvalidAssigneeTasks(ctx)
+		return err
+	})
+
+	return tasks, err
+}
+
 // logChanges - обрабатывает измененные поля задачи и на каждое изменение создает запись в истории
 // требует вызова внутри методов unit of work
 func (u taskUsecase) logChanges(ctx context.Context, oldTask, newTask domain.Task, changedBy uuid.UUID) error {
