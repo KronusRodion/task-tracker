@@ -3,7 +3,7 @@ This is repository with task-group tracking application.
 Project uses MySQL like main persistence data storage and Redis like cache. 
 
 # Tests
-All usecases was coveredwith unit-tests in code
+All usecases was covered with unit-tests in code
 The main usecases (ex. Create team, invite user, create/update task), repositories + handlers was covered by integration tests
 
 To run tests:
@@ -49,55 +49,56 @@ AUTH_REFRESH_TTL=720h
 # Metrics
 The application collects runtime, endpoints and network stats and provide /metrics endpoint in Prometheus format. 
 
+### SQL Queries
+- **✅ Complex SQL Queries with JOINs, Aggregations, and Window Functions**
+  - **a) Query with JOIN 3+ tables + aggregation**
+    *"Получить для каждой команды: название, количество участников, количество задач в статусе done за последние 7 дней"*
+    **Status:** Implemented in the database layer with optimized queries and indexed tables.
 
-# Technical specification
-REST API сервис для управления задачами в командах с поддержкой ролевой модели, истории изменений и сложными SQL-запросами.
-Стек обязательных технологий:
-·	Go
-·	MySQL
-·	Redis
-·	Docker + Docker Compose
-·	Git
-Структура базы данных (минимум 3 связи):
--- 1. Пользователи-- 2. Команды-- 3. Связь пользователь → команда (многие-ко-многим) + роль-- 4. Задачи-- 5. История изменений задач (аудит)-- 6. Комментарии к задачам
-Всего связей:
-1.	teams.created_by → users.id
-2.	team_members.user_id → users.id
-3.	team_members.team_id → teams.id
-4.	tasks.assignee_id → users.id
-5.	tasks.team_id → teams.id
-6.	tasks.created_by → users.id
-7.	task_history.task_id → tasks.id
-8.	task_history.changed_by → users.id
-9.	task_comments.task_id → tasks.id
-10.	task_comments.user_id → users.id
-Основные требования к API:
-1. Регистрация и аутентификация
-·	POST /api/v1/register – регистрация
-·	POST /api/v1/login – аутентификация (JWT)
-2. Управление командами
-·	POST /api/v1/teams – создать команду (стать owner)
-·	GET /api/v1/teams – список команд, где пользователь состоит
-·	POST /api/v1/teams/{id}/invite – пригласить пользователя в команду (только owner/admin)
-3. Управление задачами
-·	POST /api/v1/tasks – создать задачу (только член команды)
-·	GET /api/v1/tasks?team_id=1&status=todo&assignee_id=5 – фильтрация с пагинацией
-·	PUT /api/v1/tasks/{id} – обновить задачу (проверка прав)
-·	GET /api/v1/tasks/{id}/history – история изменений задачи
-4. Сложные SQL-запросы (обязательно реализовать):
--- а) Запрос с JOIN 3+ таблиц + агрегация-- "Получить для каждой команды: название, количество участников, количество задач в статусе done за последние 7 дней"-- б) Рекурсивный запрос или подзапрос с оконной функцией-- "Получить топ-3 пользователя по количеству созданных задач в каждой команде за месяц"-- в) Запрос с условием по связанным таблицам-- "Найти задачи, где assignee не является членом команды этой задачи" (валидация целостности)
-5. Оптимизация (обязательно):
-·	Кеширование в Redis: список задач команды (TTL 5 мин)
-·	Индексы в MySQL для ускорения запросов (определить и создать)
-·	Connection pooling для БД
-·	Пагинация на уровне БД (LIMIT/OFFSET или cursor-based)
-6. Тестирование:
-·	Unit-тесты на бизнес-логику
-·	Интеграционные тесты с MySQL (testcontainers)
-·	Минимум 85% покрытия по критическим методам
-7. Дополнительные пункты:
-·	Circuit breaker при вызове внешнего сервиса (например, мок "email service" для приглашений)
-·	Rate limiting на эндпоинты (100 запросов/мин на пользователя)
-·	Graceful shutdown
-·	Prometheus метрики: количество запросов, ошибок, время ответа
-·	Конфигурация через config файл (YAML/ENV)
+  - **b) Recursive Query or Subquery with Window Function**
+    *"Получить топ-3 пользователя по количеству созданных задач в каждой команде за месяц"*
+    **Status:** Implemented using window functions in SQL queries.
+
+  - **c) Query with condition on related tables**
+    *"Найти задачи, где assignee не является членом команды этой задачи" (валидация целостности)*
+    **Status:** Implemented in the `FindInvalidAssigneeTasks` method in `usecase.go` and tested.
+
+---
+
+### Optimization
+- **✅ Database Indexes**
+  - **a) Indexes for important SQL queries**
+    **Status:** Indexes are added to frequently queried columns (e.g., `team_id`, `status`, `created_at`) to optimize performance.
+
+- **✅ Redis Caching**
+  - **b) Caching task lists for teams (TTL 5 min)**
+    **Status:** Implemented in `usecase.go` with Redis caching for task lists, invalidated on task creation/update.
+
+---
+
+### Protection
+- **✅ Rate Limiting**
+  - **a) Rate limiting on endpoints (100 requests/min per user)**
+    **Status:** Implemented in `middleware/rate_limiter.go` and applied to all API endpoints.
+
+- **✅ Circuit Breaker for Notification Service**
+  - **b) Mock notification service with Circuit Breaker**
+    **Status:** Implemented using `gobreaker` library in `usecase.go` and `module.go`. The `NotificationService` is wrapped with a circuit breaker to handle failures gracefully.
+
+---
+
+### Additional API Features
+- **✅ Task Comments API**
+  - **a) Create a comment for a task**
+    **Status:** Not yet implemented (planned for future updates).
+
+  - **b) Delete your own comment for a task**
+    **Status:** Not yet implemented (planned for future updates).
+
+  - **c) List comments for a task**
+    **Status:** Not yet implemented (planned for future updates).
+
+  - **d) Create `task_comments` table**
+    **Status:** Not yet implemented (planned for future updates).
+
+---
