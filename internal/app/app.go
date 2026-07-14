@@ -14,6 +14,7 @@ import (
 	"github.com/KronusRodion/task-tracker/internal/closer"
 	"github.com/KronusRodion/task-tracker/internal/config"
 	"github.com/KronusRodion/task-tracker/internal/metrics"
+	"github.com/KronusRodion/task-tracker/internal/middleware"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
@@ -64,6 +65,7 @@ func Build(cfg *config.Config) (*App, error) {
 	closer.Add(client)
 
 	m := metrics.NewMetrics()
+	limiter := middleware.NewRateLimiter()
 
 	mainRouter := mux.NewRouter()
 
@@ -72,6 +74,7 @@ func Build(cfg *config.Config) (*App, error) {
 	apiRouter := mainRouter.PathPrefix("/api/v1").Subrouter()
 
 	apiRouter.Use(m.Middleware)
+	apiRouter.Use(limiter.Middleware)
 
 	auth.NewModule(db, client, apiRouter, cfg.Auth)
 	tasks.NewModule(db, client, apiRouter)
@@ -91,7 +94,7 @@ func Build(cfg *config.Config) (*App, error) {
 		cfg:     cfg,
 		server:  server,
 		metrics: m,
-		closer: closer,
+		closer:  closer,
 	}, nil
 }
 
