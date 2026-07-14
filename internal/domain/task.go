@@ -88,3 +88,10 @@ type TopUser struct {
 	TaskCount int       `json:"task_count"`
 	Rank      int       `json:"rank"`
 }
+
+// Notification represents a notification message to be sent.
+type Notification struct {
+	Title       string
+	Message     string
+	RecipientID uuid.UUID
+}

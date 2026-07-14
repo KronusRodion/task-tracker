@@ -1,4 +1,3 @@
-// internal/usecase/task_usecase.go
 package usecase
 
 import (
@@ -15,12 +14,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// taskUsecase represents the usecase for task operations.
 type taskUsecase struct {
-	taskRepo    TaskRepository
-	teamRepo    TeamRepository
-	historyRepo TaskHistoryRepository
-	uow         persistence.UnitOfWork
-	cache       Cache
+	taskRepo        TaskRepository
+	teamRepo        TeamRepository
+	historyRepo     TaskHistoryRepository
+	uow             persistence.UnitOfWork
+	cache           Cache
+	notificationSvc NotificationService
+	circuitBreaker  CircuitBreaker
 }
 
 func NewTaskUsecase(
@@ -29,18 +31,29 @@ func NewTaskUsecase(
 	historyRepo TaskHistoryRepository,
 	uow persistence.UnitOfWork,
 	cache Cache,
+	notificationSvc NotificationService,
+	circuitBreaker CircuitBreaker,
 ) taskUsecase {
 	return taskUsecase{
-		taskRepo:    taskRepo,
-		teamRepo:    teamRepo,
-		historyRepo: historyRepo,
-		uow:         uow,
-		cache:       cache,
+		taskRepo:        taskRepo,
+		teamRepo:        teamRepo,
+		historyRepo:     historyRepo,
+		uow:             uow,
+		cache:           cache,
+		notificationSvc: notificationSvc,
+		circuitBreaker:  circuitBreaker,
 	}
 }
 
-func (u taskUsecase) CreateTask(ctx context.Context, task domain.Task) (domain.Task, error) {
+// sendNotification wraps the notification service call with the circuit breaker.
+func (u taskUsecase) sendNotification(ctx context.Context, notification domain.Notification) error {
+	_, err := u.circuitBreaker.Execute(func() (interface{}, error) {
+		return nil, u.notificationSvc.SendNotification(ctx, notification)
+	})
+	return err
+}
 
+func (u taskUsecase) CreateTask(ctx context.Context, task domain.Task) (domain.Task, error) {
 	return task, u.uow.DoWithTx(ctx, func(ctx context.Context) error {
 		ok, err := u.teamRepo.IsMember(ctx, task.TeamID, task.CreatedBy)
 		if err != nil {
@@ -81,14 +94,12 @@ func (u taskUsecase) GetTasks(ctx context.Context, filter domain.TaskFilter) ([]
 	var tasks []domain.Task
 	var err error
 
-	// Формируем ключ для кеша
 	status := domain.StatusTaskFilterAll
 	if filter.Status != nil {
 		status = *filter.Status
 	}
 	cacheKey := fmt.Sprintf("tasks:team:%s:filter:%s", filter.TeamID, status)
 
-	// Проверяем наличие кеша
 	cachedTasks, err := u.getCachedTasks(ctx, cacheKey)
 	if err != nil {
 		return nil, err
@@ -98,7 +109,6 @@ func (u taskUsecase) GetTasks(ctx context.Context, filter domain.TaskFilter) ([]
 		return cachedTasks, nil
 	}
 
-	// Если кеша нет, запрашиваем данные из базы
 	err = u.uow.Do(ctx, func(ctx context.Context) error {
 		if filter.TeamID != nil {
 			if ok, err := u.teamRepo.IsMember(ctx, *filter.TeamID, filter.UserID); err != nil {
@@ -116,7 +126,6 @@ func (u taskUsecase) GetTasks(ctx context.Context, filter domain.TaskFilter) ([]
 		return nil, err
 	}
 
-	// Сохраняем результат в кеш
 	if err := u.cacheTasks(ctx, cacheKey, tasks, 5*time.Minute); err != nil {
 		log.Printf("Failed to cache tasks: %v", err)
 	}
@@ -151,7 +160,6 @@ func (u taskUsecase) cacheTasks(ctx context.Context, key string, tasks []domain.
 }
 
 func (u taskUsecase) invalidateCache(ctx context.Context, teamID uuid.UUID) error {
-	// Удаляем кеш для всех возможных статусов задач
 	for _, status := range domain.AllStatuses() {
 		key := fmt.Sprintf("tasks:team:%s:filter:%s", teamID, status)
 		if err := u.cache.Delete(ctx, key); err != nil {
@@ -216,7 +224,6 @@ func (u taskUsecase) UpdateTask(
 			return err
 		}
 
-		// Инвалидация кеша после обновления задачи
 		if err := u.invalidateCache(ctx, task.TeamID); err != nil {
 			log.Printf("Failed to invalidate cache: %v", err)
 		}

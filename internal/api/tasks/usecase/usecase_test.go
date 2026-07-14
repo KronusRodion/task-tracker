@@ -97,16 +97,34 @@ func (m *MockCache) Delete(ctx context.Context, key string) error {
 	return args.Error(0)
 }
 
+// MockCircuitBreaker is a mock implementation of the CircuitBreaker for testing.
+type MockCircuitBreaker struct{ mock.Mock }
+
+func (m *MockCircuitBreaker) Execute(fn func() (interface{}, error)) (interface{}, error) {
+	args := m.Called(fn)
+	return args.Get(0), args.Error(1)
+}
+
+// MockNotificationService is a mock implementation of the NotificationService for testing.
+type MockNotificationService struct{ mock.Mock }
+
+func (m *MockNotificationService) SendNotification(ctx context.Context, notification domain.Notification) error {
+	args := m.Called(ctx, notification)
+	return args.Error(0)
+}
+
 // ==================== TaskUsecase Suite ====================
 
 type TaskUsecaseSuite struct {
 	suite.Suite
-	uow         *MockUnitOfWork
-	taskRepo    *MockTaskRepository
-	teamRepo    *MockTeamRepository
-	historyRepo *MockTaskHistoryRepository
-	cache       *MockCache
-	uc          taskUsecase
+	uow             *MockUnitOfWork
+	taskRepo        *MockTaskRepository
+	teamRepo        *MockTeamRepository
+	historyRepo     *MockTaskHistoryRepository
+	cache           *MockCache
+	notificationSvc *MockNotificationService
+	circuitBreaker  *MockCircuitBreaker
+	uc              taskUsecase
 }
 
 func (s *TaskUsecaseSuite) SetupTest() {
@@ -115,8 +133,18 @@ func (s *TaskUsecaseSuite) SetupTest() {
 	s.teamRepo = new(MockTeamRepository)
 	s.historyRepo = new(MockTaskHistoryRepository)
 	s.cache = new(MockCache)
+	s.notificationSvc = new(MockNotificationService)
+	s.circuitBreaker = new(MockCircuitBreaker)
 
-	s.uc = NewTaskUsecase(s.taskRepo, s.teamRepo, s.historyRepo, s.uow, s.cache)
+	s.uc = NewTaskUsecase(
+		s.taskRepo,
+		s.teamRepo,
+		s.historyRepo,
+		s.uow,
+		s.cache,
+		s.notificationSvc,
+		s.circuitBreaker,
+	)
 }
 
 func TestTaskUsecaseSuite(t *testing.T) {

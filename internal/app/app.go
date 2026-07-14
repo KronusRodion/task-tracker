@@ -13,12 +13,22 @@ import (
 	"github.com/KronusRodion/task-tracker/internal/api/team"
 	"github.com/KronusRodion/task-tracker/internal/closer"
 	"github.com/KronusRodion/task-tracker/internal/config"
+	"github.com/KronusRodion/task-tracker/internal/domain"
 	"github.com/KronusRodion/task-tracker/internal/metrics"
 	"github.com/KronusRodion/task-tracker/internal/middleware"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
+
+// MockNotificationService is a mock implementation of the NotificationService for testing.
+type mockNotificationService struct{}
+
+func (m *mockNotificationService) SendNotification(ctx context.Context, notification domain.Notification) error {
+	// Mock implementation: log the notification and return nil (success)
+	log.Printf("Mock notification sent: %s to %s", notification.Message, notification.RecipientID)
+	return nil
+}
 
 type App struct {
 	cfg     *config.Config
@@ -77,7 +87,11 @@ func Build(cfg *config.Config) (*App, error) {
 	apiRouter.Use(limiter.Middleware)
 
 	auth.NewModule(db, client, apiRouter, cfg.Auth)
-	tasks.NewModule(db, client, apiRouter)
+
+	// Mock NotificationService for circuit breaker testing
+	mockNotificationSvc := &mockNotificationService{}
+	tasks.NewModule(db, client, mockNotificationSvc, apiRouter)
+
 	team.NewModule(db, apiRouter)
 
 	server := &http.Server{

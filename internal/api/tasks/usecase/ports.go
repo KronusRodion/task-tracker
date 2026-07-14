@@ -8,6 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// NotificationService defines the interface for sending notifications.
+type NotificationService interface {
+	SendNotification(ctx context.Context, notification domain.Notification) error
+}
+
+// CircuitBreaker defines the interface for a circuit breaker.
+type CircuitBreaker interface {
+	Execute(fn func() (interface{}, error)) (interface{}, error)
+}
+
 type Cache interface {
 	Get(ctx context.Context, key string) ([]byte, error)
 	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
